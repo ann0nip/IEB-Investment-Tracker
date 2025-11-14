@@ -1,12 +1,21 @@
 {
-  "name": "my-v0-project",
+  "name": "ieb-investment-tracker",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=22.0.0",
+    "yarn": ">=1.22.0"
+  },
+  "packageManager": "yarn@1.22.22",
   "scripts": {
     "build": "next build",
     "dev": "next dev",
-    "lint": "eslint .",
-    "start": "next start"
+    "lint": "biome lint .",
+    "lint:fix": "biome lint --write .",
+    "format": "biome format --write .",
+    "check": "biome check .",
+    "check:fix": "biome check --write .",
+    "start": "next build && next start"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
