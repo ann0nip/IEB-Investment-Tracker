@@ -134,7 +134,7 @@ public/                   # Static assets (icons, images)
 type Asset = {
   id: number
   category: string        // e.g., "Equities Growth (CEDEARs)", "Fixed Income Corporativo"
-  ticker: string         // e.g., "AMZN", "YPFD"
+  ticker: string         // e.g., "AMZN", "YPFDD"
   percent: number        // Initial allocation percentage
   months: Record<string, { amount: number; qty: number }>  // Cumulative monthly data
 }

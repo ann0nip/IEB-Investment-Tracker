@@ -1,13 +1,17 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { TrendingUp, TrendingDown, PlusCircle, DollarSign, PieChart } from 'lucide-react'
+import { DateInput } from '@/components/ui/date-input'
+import { TrendingUp, TrendingDown, PlusCircle, DollarSign, PieChart, RefreshCw } from 'lucide-react'
+import { formatDate } from '@/lib/utils'
+import { useMarketPrices } from '@/lib/hooks/useMarketPrices'
+import { toast } from 'sonner'
 
 type Asset = {
   id: number
@@ -25,72 +29,56 @@ type Operation = {
 }
 
 const initialAssets: Asset[] = [
-  { id: 1, category: 'Equities Growth (CEDEARs)', ticker: 'AMZN', percent: 13.29, months: {} },
-  { id: 2, category: 'Equities Growth (CEDEARs)', ticker: 'MSFT', percent: 12.98, months: {} },
-  { id: 3, category: 'Equities Growth (CEDEARs)', ticker: 'JPM', percent: 8.40, months: {} },
-  { id: 4, category: 'Equities Growth (CEDEARs)', ticker: 'XLF', percent: 8.22, months: {} },
-  { id: 5, category: 'Equities Growth (CEDEARs)', ticker: 'GS', percent: 0, months: {} },
-  { id: 6, category: 'Equities Value/Defensivos (CEDEARs)', ticker: 'UNH', percent: 8.58, months: {} },
-  { id: 7, category: 'Equities Value/Defensivos (CEDEARs)', ticker: 'XLV', percent: 8.64, months: {} },
-  { id: 8, category: 'Equities Value/Defensivos (CEDEARs)', ticker: 'CAT', percent: 0, months: {} },
-  { id: 9, category: 'Equities Value/Defensivos (CEDEARs)', ticker: 'PFE', percent: 0, months: {} },
-  { id: 10, category: 'Equities Value/Defensivos (CEDEARs)', ticker: 'BIIB', percent: 0, months: {} },
-  { id: 11, category: 'Equities Value/Defensivos (CEDEARs)', ticker: 'MMM', percent: 0, months: {} },
-  { id: 12, category: 'Equities Value/Defensivos (CEDEARs)', ticker: 'DIA', percent: 0, months: {} },
-  { id: 13, category: 'Equities Value/Defensivos (CEDEARs)', ticker: 'JNJ', percent: 6.73, months: {} },
+  { id: 1, category: 'Equities Growth (CEDEARs)', ticker: 'AMZND', percent: 13.29, months: {} },
+  { id: 2, category: 'Equities Growth (CEDEARs)', ticker: 'MSFTD', percent: 12.98, months: {} },
+  { id: 3, category: 'Equities Growth (CEDEARs)', ticker: 'JPMD', percent: 8.40, months: {} },
+  { id: 4, category: 'Equities Growth (CEDEARs)', ticker: 'XLFD', percent: 8.22, months: {} },
+  { id: 5, category: 'Equities Growth (CEDEARs)', ticker: 'GSD', percent: 0, months: {} },
+  { id: 6, category: 'Equities Value/Defensivos (CEDEARs)', ticker: 'UNHD', percent: 8.58, months: {} },
+  { id: 7, category: 'Equities Value/Defensivos (CEDEARs)', ticker: 'XLVD', percent: 8.64, months: {} },
+  { id: 8, category: 'Equities Value/Defensivos (CEDEARs)', ticker: 'CATD', percent: 0, months: {} },
+  { id: 9, category: 'Equities Value/Defensivos (CEDEARs)', ticker: 'PFED', percent: 0, months: {} },
+  { id: 10, category: 'Equities Value/Defensivos (CEDEARs)', ticker: 'BIIBD', percent: 0, months: {} },
+  { id: 11, category: 'Equities Value/Defensivos (CEDEARs)', ticker: 'MMMD', percent: 0, months: {} },
+  { id: 12, category: 'Equities Value/Defensivos (CEDEARs)', ticker: 'DIAD', percent: 0, months: {} },
+  { id: 13, category: 'Equities Value/Defensivos (CEDEARs)', ticker: 'JNJD', percent: 6.73, months: {} },
   { id: 14, category: 'FCI Líquido', ticker: 'Ciclo Nova II Clase A', percent: 6.28, months: {} },
-  { id: 15, category: 'Fixed Income Corporativo', ticker: 'YPFD', percent: 12.17, months: {} },
-  { id: 16, category: 'Fixed Income Corporativo', ticker: 'PAMPD', percent: 9.10, months: {} },
-  { id: 17, category: 'Fixed Income Corporativo', ticker: 'TXARD', percent: 0, months: {} },
-  { id: 18, category: 'Fixed Income Corporativo', ticker: 'ONs YM39D & YMCID', percent: 0, months: {} },
-  { id: 19, category: 'Soberanos', ticker: 'GD30D', percent: 5.62, months: {} },
-  { id: 20, category: 'Soberanos', ticker: 'GD35D', percent: 0, months: {} },
+  { id: 15, category: 'Fixed Income Acciones', ticker: 'YPFDD', percent: 12.17, months: {} },
+  { id: 16, category: 'Fixed Income Acciones', ticker: 'PAMPD', percent: 9.10, months: {} },
+  { id: 17, category: 'Fixed Income Acciones', ticker: 'TXARD', percent: 0, months: {} },
+  { id: 18, category: 'Fixed Income Corporativo (ONs)', ticker: 'YM39D', percent: 0, months: {} },
+  { id: 19, category: 'Fixed Income Corporativo (ONs)', ticker: 'YMCID', percent: 0, months: {} },
+  { id: 20, category: 'Soberanos', ticker: 'GD30D', percent: 5.62, months: {} },
+  { id: 21, category: 'Soberanos', ticker: 'GD35D', percent: 0, months: {} },
 ]
 
 export default function InvestmentTracker() {
   const [assets, setAssets] = useState<Asset[]>(initialAssets)
   const [operations, setOperations] = useState<Operation[]>([])
   const [selectedAssetId, setSelectedAssetId] = useState<number>(1)
-  const [date, setDate] = useState('')
+  const [date, setDate] = useState<Date | undefined>(new Date())
   const [amount, setAmount] = useState('')
   const [qty, setQty] = useState('')
-  const [currentValue, setCurrentValue] = useState<Record<string, number>>({})
 
-  // Load data from localStorage on mount
-  useEffect(() => {
-    const savedAssets = localStorage.getItem('investmentAssets')
-    const savedOperations = localStorage.getItem('investmentOperations')
-    const savedCurrentValues = localStorage.getItem('investmentCurrentValues')
+  // Get all tickers from assets
+  const tickers = assets.map(a => a.ticker)
 
-    if (savedAssets) setAssets(JSON.parse(savedAssets))
-    if (savedOperations) setOperations(JSON.parse(savedOperations))
-    if (savedCurrentValues) setCurrentValue(JSON.parse(savedCurrentValues))
-
-    // Set default date to today
-    const today = new Date()
-    const formattedDate = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`
-    setDate(formattedDate)
-  }, [])
-
-  // Save to localStorage whenever data changes
-  useEffect(() => {
-    localStorage.setItem('investmentAssets', JSON.stringify(assets))
-  }, [assets])
-
-  useEffect(() => {
-    localStorage.setItem('investmentOperations', JSON.stringify(operations))
-  }, [operations])
-
-  useEffect(() => {
-    localStorage.setItem('investmentCurrentValues', JSON.stringify(currentValue))
-  }, [currentValue])
+  // Market prices hook with SWR
+  const {
+    prices,
+    loading,
+    refreshPrices,
+    getPrice,
+    isLoadingTicker,
+  } = useMarketPrices(tickers)
 
   const addMonthlyData = () => {
     const asset = assets.find(a => a.id === selectedAssetId)
-    if (!asset || (!amount && !qty)) return
+    if (!asset || (!amount && !qty) || !date) return
 
+    const dateStr = formatDate(date)
     const newOp: Operation = {
-      date,
+      date: dateStr,
       ticker: asset.ticker,
       amount: parseFloat(amount) || 0,
       qty: parseFloat(qty) || 0
@@ -98,7 +86,7 @@ export default function InvestmentTracker() {
 
     setOperations(prev => [...prev, newOp])
 
-    const key = date.replace(/\//g, '-')
+    const key = dateStr.replace(/\//g, '-')
     setAssets(assets.map(a =>
       a.id === selectedAssetId
         ? {
@@ -118,8 +106,17 @@ export default function InvestmentTracker() {
     setQty('')
   }
 
-  const updateCurrentValue = (ticker: string, value: string) => {
-    setCurrentValue(prev => ({ ...prev, [ticker]: parseFloat(value) || 0 }))
+  // Update all prices from API
+  const handleUpdateAllPrices = async () => {
+    toast.loading('Actualizando precios...', { id: 'update-all' })
+
+    try {
+      await refreshPrices()
+      const priceCount = Object.values(prices).filter(p => p !== null).length
+      toast.success(`${priceCount} precios actualizados`, { id: 'update-all' })
+    } catch (_error) {
+      toast.error('Error al actualizar precios', { id: 'update-all' })
+    }
   }
 
   const calculateCumulative = (months: Record<string, { amount: number; qty: number }>) =>
@@ -140,11 +137,13 @@ export default function InvestmentTracker() {
   const calculateGainLoss = (ticker: string) => {
     const asset = assets.find(a => a.ticker === ticker)
     if (!asset) return { value: '0.00', isPositive: true }
-    
+
     const cumul = calculateCumulative(asset.months)
-    const curr = currentValue[ticker] || 0
+    const qty = calculateCumulQty(asset.months)
+    const price = getPrice(ticker) || 0
+    const curr = qty * price
     const gainLoss = cumul > 0 ? ((curr - cumul) / cumul * 100) : 0
-    
+
     return {
       value: Math.abs(gainLoss).toFixed(2),
       isPositive: gainLoss >= 0
@@ -152,7 +151,11 @@ export default function InvestmentTracker() {
   }
 
   const totalInvested = assets.reduce((sum, a) => sum + calculateCumulative(a.months), 0)
-  const totalCurrentValue = assets.reduce((sum, a) => sum + (currentValue[a.ticker] || 0), 0)
+  const totalCurrentValue = assets.reduce((sum, a) => {
+    const qty = calculateCumulQty(a.months)
+    const price = getPrice(a.ticker) || 0
+    return sum + (qty * price)
+  }, 0)
   const totalGainLoss = totalInvested > 0 ? ((totalCurrentValue - totalInvested) / totalInvested * 100) : 0
 
   return (
@@ -216,57 +219,60 @@ export default function InvestmentTracker() {
             <CardDescription>Registra nuevas compras o aportes a tus activos</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 md:grid-cols-5">
-              <div className="md:col-span-2">
-                <label className="text-sm font-medium mb-2 block">Ticker</label>
-                <Select value={selectedAssetId.toString()} onValueChange={(v) => setSelectedAssetId(parseInt(v))}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {assets.map(a => (
-                      <SelectItem key={a.id} value={a.id.toString()}>
-                        {a.ticker} - {a.category}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            <div className="grid gap-6 md:grid-cols-2">
+              {/* Left column - Form inputs */}
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Ticker</label>
+                  <Select value={selectedAssetId.toString()} onValueChange={(v) => setSelectedAssetId(parseInt(v, 10))}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {assets.map(a => (
+                        <SelectItem key={a.id} value={a.id.toString()}>
+                          {a.ticker} - {a.category}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Monto ($)</label>
+                  <Input
+                    type="number"
+                    placeholder="0.00"
+                    step="0.01"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Cantidad</label>
+                  <Input
+                    type="number"
+                    placeholder="0"
+                    step="0.01"
+                    value={qty}
+                    onChange={(e) => setQty(e.target.value)}
+                  />
+                </div>
+
+                <Button onClick={addMonthlyData} className="w-full">
+                  <PlusCircle className="mr-2 h-4 w-4" />
+                  Agregar Operación
+                </Button>
               </div>
 
+              {/* Right column - Date Input */}
               <div>
                 <label className="text-sm font-medium mb-2 block">Fecha</label>
-                <Input
-                  placeholder="DD/MM/YYYY"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
+                <DateInput
+                  selected={date}
+                  onSelect={setDate}
                 />
-              </div>
-
-              <div>
-                <label className="text-sm font-medium mb-2 block">Monto ($)</label>
-                <Input
-                  type="number"
-                  placeholder="0.00"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label className="text-sm font-medium mb-2 block">Cantidad</label>
-                <Input
-                  type="number"
-                  placeholder="0"
-                  value={qty}
-                  onChange={(e) => setQty(e.target.value)}
-                />
-              </div>
-
-              <div className="md:col-span-5 flex justify-end">
-                <Button onClick={addMonthlyData} className="w-full md:w-auto">
-                  <PlusCircle className="mr-2 h-4 w-4" />
-                  Agregar
-                </Button>
               </div>
             </div>
           </CardContent>
@@ -275,8 +281,21 @@ export default function InvestmentTracker() {
         {/* Portfolio Table */}
         <Card>
           <CardHeader>
-            <CardTitle>Portafolio de Inversiones</CardTitle>
-            <CardDescription>Vista detallada de todos tus activos</CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Portafolio de Inversiones</CardTitle>
+                <CardDescription>Vista detallada de todos tus activos</CardDescription>
+              </div>
+              <Button
+                onClick={handleUpdateAllPrices}
+                variant="outline"
+                className="gap-2"
+                disabled={loading}
+              >
+                <RefreshCw className="h-4 w-4" />
+                Actualizar todos los precios
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
@@ -289,7 +308,7 @@ export default function InvestmentTracker() {
                     <TableHead className="text-right">Monto Acum.</TableHead>
                     <TableHead className="text-right">Cant. Acum.</TableHead>
                     <TableHead className="text-right">Precio Prom.</TableHead>
-                    <TableHead className="text-right">Valor Actual</TableHead>
+                    <TableHead className="text-right">Cotización</TableHead>
                     <TableHead className="text-right">Gan/Perd %</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -298,6 +317,9 @@ export default function InvestmentTracker() {
                     const cumul = calculateCumulative(asset.months)
                     const dynPercent = calculateDynamicPercent(cumul, totalInvested)
                     const gainLoss = calculateGainLoss(asset.ticker)
+                    const isLoading = isLoadingTicker(asset.ticker)
+                    const price = getPrice(asset.ticker)
+                    const qty = calculateCumulQty(asset.months)
 
                     return (
                       <TableRow key={asset.id}>
@@ -306,19 +328,21 @@ export default function InvestmentTracker() {
                             {asset.category.split(' ')[0]}
                           </Badge>
                         </TableCell>
-                        <TableCell className="font-mono font-semibold">{asset.ticker}</TableCell>
+                        <TableCell className="font-mono font-semibold">
+                          {asset.ticker}
+                        </TableCell>
                         <TableCell className="text-right">{dynPercent}%</TableCell>
                         <TableCell className="text-right font-medium">${cumul.toFixed(2)}</TableCell>
-                        <TableCell className="text-right">{calculateCumulQty(asset.months).toFixed(2)}</TableCell>
+                        <TableCell className="text-right">{qty.toFixed(2)}</TableCell>
                         <TableCell className="text-right">${calculateAvgPrice(asset.months).toFixed(2)}</TableCell>
-                        <TableCell className="text-right">
-                          <Input
-                            type="number"
-                            placeholder="0.00"
-                            className="w-28 h-8 text-right"
-                            onChange={(e) => updateCurrentValue(asset.ticker, e.target.value)}
-                            value={currentValue[asset.ticker] || ''}
-                          />
+                        <TableCell className="text-right font-medium">
+                          {price !== null && price > 0 ? (
+                            <span className={isLoading ? 'text-muted-foreground' : ''}>
+                              ${price.toFixed(2)}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
                         </TableCell>
                         <TableCell className="text-right">
                           <span className={gainLoss.isPositive ? 'text-emerald-500' : 'text-rose-500'}>
