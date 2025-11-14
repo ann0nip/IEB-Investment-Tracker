@@ -219,54 +219,23 @@ export default function InvestmentTracker() {
             <CardDescription>Registra nuevas compras o aportes a tus activos</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-6 md:grid-cols-2">
-              {/* Left column - Form inputs */}
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Ticker</label>
-                  <Select value={selectedAssetId.toString()} onValueChange={(v) => setSelectedAssetId(parseInt(v, 10))}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {assets.map(a => (
-                        <SelectItem key={a.id} value={a.id.toString()}>
-                          {a.ticker} - {a.category}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Monto ($)</label>
-                  <Input
-                    type="number"
-                    placeholder="0.00"
-                    step="0.01"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Cantidad</label>
-                  <Input
-                    type="number"
-                    placeholder="0"
-                    step="0.01"
-                    value={qty}
-                    onChange={(e) => setQty(e.target.value)}
-                  />
-                </div>
-
-                <Button onClick={addMonthlyData} className="w-full">
-                  <PlusCircle className="mr-2 h-4 w-4" />
-                  Agregar Operación
-                </Button>
+            <div className="grid gap-4 md:grid-cols-4">
+              <div>
+                <label className="text-sm font-medium mb-2 block">Ticker</label>
+                <Select value={selectedAssetId.toString()} onValueChange={(v) => setSelectedAssetId(parseInt(v, 10))}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {assets.map(a => (
+                      <SelectItem key={a.id} value={a.id.toString()}>
+                        {a.ticker} - {a.category}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
-              {/* Right column - Date Input */}
               <div>
                 <label className="text-sm font-medium mb-2 block">Fecha</label>
                 <DateInput
@@ -274,7 +243,34 @@ export default function InvestmentTracker() {
                   onSelect={setDate}
                 />
               </div>
+
+              <div>
+                <label className="text-sm font-medium mb-2 block">Monto ($)</label>
+                <Input
+                  type="number"
+                  placeholder="0.00"
+                  step="0.01"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium mb-2 block">Cantidad</label>
+                <Input
+                  type="number"
+                  placeholder="0"
+                  step="0.01"
+                  value={qty}
+                  onChange={(e) => setQty(e.target.value)}
+                />
+              </div>
             </div>
+
+            <Button onClick={addMonthlyData} className="w-full mt-4">
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Agregar Operación
+            </Button>
           </CardContent>
         </Card>
 

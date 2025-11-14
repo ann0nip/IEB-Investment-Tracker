@@ -11,25 +11,25 @@ IEB+ Investment Tracker is a Next.js 16 application for tracking investment port
 **Package Manager**: This project uses **Yarn 1.22.22** as the official package manager. Do not mix npm, pnpm, or other package managers.
 
 ### Start Development Server
-```bash
+\`\`\`bash
 yarn dev
-```
+\`\`\`
 Opens development server at http://localhost:3000
 
 ### Build for Production
-```bash
+\`\`\`bash
 yarn build
-```
+\`\`\`
 Creates optimized production build with TypeScript type checking.
 
 ### Start Production Server
-```bash
+\`\`\`bash
 yarn start
-```
+\`\`\`
 Note: This runs both `yarn build` and starts the production server sequentially.
 
 ### Code Quality (Biome)
-```bash
+\`\`\`bash
 # Lint only
 yarn lint
 
@@ -44,7 +44,7 @@ yarn check
 
 # Check and auto-fix all
 yarn check:fix
-```
+\`\`\`
 
 **Note**: This project uses [Biome](https://biomejs.dev) instead of ESLint and Prettier for better performance and simpler configuration.
 
@@ -62,7 +62,7 @@ yarn check:fix
 
 ### Project Structure
 
-```
+\`\`\`
 app/
   ├── layout.tsx          # Root layout with Vercel Analytics integration
   ├── page.tsx            # Main investment tracker application (client component)
@@ -82,7 +82,7 @@ lib/
   └── utils.ts            # Utility functions (cn helper for Tailwind)
 
 public/                   # Static assets (icons, images)
-```
+\`\`\`
 
 ### Key Configuration
 
@@ -130,7 +130,7 @@ public/                   # Static assets (icons, images)
 
 **Data Models**:
 
-```typescript
+\`\`\`typescript
 type Asset = {
   id: number
   category: string        // e.g., "Equities Growth (CEDEARs)", "Fixed Income Corporativo"
@@ -145,7 +145,7 @@ type Operation = {
   amount: number        // Investment amount in USD
   qty: number          // Quantity of shares/bonds
 }
-```
+\`\`\`
 
 **localStorage Keys**:
 - `investmentAssets` - Asset array with monthly accumulations
@@ -168,9 +168,9 @@ All calculations are performed client-side in real-time.
 This project uses shadcn/ui, a copy-paste component library built on Radix UI and Tailwind CSS. Components are located in `components/ui/` and can be customized directly.
 
 To add new shadcn/ui components (if needed):
-```bash
+\`\`\`bash
 npx shadcn-ui@latest add [component-name]
-```
+\`\`\`
 
 ### Styling Approach
 

@@ -19,36 +19,36 @@ Sistema de seguimiento de portafolio de inversiones para CEDEARs, bonos corporat
 
 ## 🛠️ Instalación
 
-```bash
+\`\`\`bash
 # Clonar el repositorio
 git clone <repository-url>
 
 # Instalar dependencias
 yarn install
-```
+\`\`\`
 
 ## 💻 Desarrollo
 
-```bash
+\`\`\`bash
 # Iniciar servidor de desarrollo
 yarn dev
 
 # Abrir http://localhost:3000
-```
+\`\`\`
 
 ## 🏗️ Build y Producción
 
-```bash
+\`\`\`bash
 # Generar build de producción
 yarn build
 
 # Iniciar servidor de producción
 yarn start
-```
+\`\`\`
 
 ## 🧹 Code Quality
 
-```bash
+\`\`\`bash
 # Lint (Biome)
 yarn lint
 
@@ -63,11 +63,11 @@ yarn check
 
 # Check y auto-fix
 yarn check:fix
-```
+\`\`\`
 
 ## 📁 Estructura del Proyecto
 
-```
+\`\`\`
 .
 ├── app/                    # Next.js App Router
 │   ├── layout.tsx         # Layout raíz
@@ -79,7 +79,7 @@ yarn check:fix
 ├── lib/                   # Utilidades y helpers
 ├── public/                # Assets estáticos
 └── styles/                # Estilos adicionales
-```
+\`\`\`
 
 ## 🎨 Características
 
