@@ -1,6 +1,6 @@
+import { normalizeTickerForApi } from '../constants/ticker-mapping'
 import type { Data912Instrument, InstrumentCategory } from '../types/data912'
 import { DATA912_ENDPOINTS } from '../types/data912'
-import { normalizeTickerForApi } from '../constants/ticker-mapping'
 
 /**
  * Fetch timeout in milliseconds
@@ -95,29 +95,15 @@ export async function fetchInstrumentByTicker(
 }
 
 /**
- * Get the best price for an instrument (close, or average of bid/ask)
+ * Get the best price for an instrument (uses only close price)
  */
 export function getBestPrice(instrument: Data912Instrument): number | null {
-  // Prefer close price
+  // Only use close price, no fallback
   if (instrument.c !== null && instrument.c > 0) {
     return instrument.c
   }
 
-  // If no close, use average of bid/ask
-  if (instrument.px_bid !== null && instrument.px_ask !== null) {
-    return (instrument.px_bid + instrument.px_ask) / 2
-  }
-
-  // If only bid available
-  if (instrument.px_bid !== null) {
-    return instrument.px_bid
-  }
-
-  // If only ask available
-  if (instrument.px_ask !== null) {
-    return instrument.px_ask
-  }
-
+  // If no close price available, return null
   return null
 }
 
@@ -157,7 +143,7 @@ export async function fetchMultipleTickers(
           const instrument = instruments.find((inst) => inst.symbol === normalized)
           results[original] = instrument ? getBestPrice(instrument) : null
         })
-      } catch (error) {
+      } catch {
         // On error, set all tickers in this category to null
         tickerList.forEach(({ original }) => {
           results[original] = null

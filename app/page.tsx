@@ -1,17 +1,18 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
+import currency from 'currency.js'
+import { DollarSign, PieChart, PlusCircle, RefreshCw, Trash2, TrendingDown, TrendingUp } from 'lucide-react'
+import { toast } from 'sonner'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { DateInput } from '@/components/ui/date-input'
+import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Badge } from '@/components/ui/badge'
-import { DateInput } from '@/components/ui/date-input'
-import { TrendingUp, TrendingDown, PlusCircle, DollarSign, PieChart, RefreshCw } from 'lucide-react'
-import { formatDate } from '@/lib/utils'
 import { useMarketPrices } from '@/lib/hooks/useMarketPrices'
-import { toast } from 'sonner'
+import { formatDate } from '@/lib/utils'
 
 type Asset = {
   id: number
@@ -60,16 +61,25 @@ export default function InvestmentTracker() {
   const [amount, setAmount] = useState('')
   const [qty, setQty] = useState('')
 
+  // Helper to check if asset category requires fixed quantity = 1
+  const isFixedQuantityCategory = (category: string) => {
+    return category === 'Soberanos' || category === 'FCI Líquido'
+  }
+
   const addMonthlyData = () => {
     const asset = assets.find(a => a.id === selectedAssetId)
     if (!asset || (!amount && !qty) || !date) return
 
     const dateStr = formatDate(date)
+    const parsedAmount = parseFloat(amount) || 0
+    // For Soberanos and FCI, quantity is always 1
+    const parsedQty = isFixedQuantityCategory(asset.category) ? 1 : (parseFloat(qty) || 0)
+
     const newOp: Operation = {
       date: dateStr,
       ticker: asset.ticker,
-      amount: parseFloat(amount) || 0,
-      qty: parseFloat(qty) || 0
+      amount: parsedAmount,
+      qty: parsedQty
     }
 
     setOperations(prev => [...prev, newOp])
@@ -82,8 +92,8 @@ export default function InvestmentTracker() {
             months: {
               ...a.months,
               [key]: {
-                amount: (a.months[key]?.amount || 0) + (parseFloat(amount) || 0),
-                qty: (a.months[key]?.qty || 0) + (parseFloat(qty) || 0)
+                amount: (a.months[key]?.amount || 0) + parsedAmount,
+                qty: (a.months[key]?.qty || 0) + parsedQty
               }
             }
           }
@@ -92,6 +102,52 @@ export default function InvestmentTracker() {
 
     setAmount('')
     setQty('')
+  }
+
+  const deleteOperation = (index: number) => {
+    const operation = operations[index]
+    if (!operation) return
+
+    // Find the asset for this operation
+    const asset = assets.find(a => a.ticker === operation.ticker)
+    if (!asset) return
+
+    // Remove from operations
+    setOperations(prev => prev.filter((_, i) => i !== index))
+
+    // Update asset months by subtracting the operation
+    const key = operation.date.replace(/\//g, '-')
+    setAssets(prevAssets =>
+      prevAssets.map(a => {
+        if (a.ticker !== operation.ticker) return a
+
+        const currentMonth = a.months[key]
+        if (!currentMonth) return a
+
+        const newAmount = currentMonth.amount - operation.amount
+        const newQty = currentMonth.qty - operation.qty
+
+        // If both are 0 or less, remove the month entry
+        if (newAmount <= 0 && newQty <= 0) {
+          const { [key]: _, ...remainingMonths } = a.months
+          return { ...a, months: remainingMonths }
+        }
+
+        // Otherwise update the month
+        return {
+          ...a,
+          months: {
+            ...a.months,
+            [key]: {
+              amount: Math.max(0, newAmount),
+              qty: Math.max(0, newQty)
+            }
+          }
+        }
+      })
+    )
+
+    toast.success('Operación eliminada')
   }
 
   // Update all prices from API
@@ -107,35 +163,37 @@ export default function InvestmentTracker() {
     }
   }
 
-  const calculateCumulative = (months: Record<string, { amount: number; qty: number }>) =>
-    Object.values(months).reduce((sum, m) => sum + (m.amount || 0), 0)
+  // Helper function to truncate decimals instead of rounding
+  const truncate = (value: number, decimals: number = 3): number => {
+    const multiplier = 10 ** decimals
+    return Math.floor(value * multiplier) / multiplier
+  }
 
-  const calculateCumulQty = (months: Record<string, { amount: number; qty: number }>) =>
-    Object.values(months).reduce((sum, m) => sum + (m.qty || 0), 0)
+  const calculateCumulative = useCallback((months: Record<string, { amount: number; qty: number }>) =>
+    Object.values(months).reduce((sum, m) => currency(sum).add(m.amount || 0).value, 0), [])
+
+  const calculateCumulQty = useCallback((months: Record<string, { amount: number; qty: number }>) =>
+    Object.values(months).reduce((sum, m) => currency(sum).add(m.qty || 0).value, 0), [])
 
   const calculateAvgPrice = (months: Record<string, { amount: number; qty: number }>) => {
     const totalAmt = calculateCumulative(months)
     const totalQty = calculateCumulQty(months)
-    return totalQty > 0 ? totalAmt / totalQty : 0
+    // Force higher precision during division to avoid rounding
+    if (totalQty === 0) return 0
+    const rawResult = totalAmt / totalQty
+    return truncate(rawResult, 3)
   }
 
   const calculateDynamicPercent = (cumul: number, total: number) =>
-    total > 0 ? (cumul / total * 100).toFixed(2) : '0.00'
+    total > 0 ? currency(truncate((cumul / total) * 100, 2), { precision: 2, symbol: '' }).format() : '0.00'
 
-  // Filter assets that have quantity > 0
-  const assetsWithQuantity = useMemo(() => {
-    return assets.filter(a => {
-      const qty = calculateCumulQty(a.months)
-      return qty > 0
-    })
-  }, [assets])
-
-  // Get tickers only from assets with quantity
+  // Get ALL tickers for price fetching (not filtered by quantity)
+  // This ensures we fetch all prices once on mount, not on every operation add
   const tickers = useMemo(() => {
-    return assetsWithQuantity.map(a => a.ticker)
-  }, [assetsWithQuantity])
+    return initialAssets.map(a => a.ticker)
+  }, []) // Empty deps - only compute once
 
-  // Market prices hook with SWR
+  // Market prices hook - will fetch once on mount
   const {
     prices,
     loading,
@@ -144,35 +202,49 @@ export default function InvestmentTracker() {
     isLoadingTicker,
   } = useMarketPrices(tickers)
 
+  // Filter assets that have quantity > 0 (for display only, not for fetching)
+  const assetsWithQuantity = useMemo(() => {
+    return assets.filter(a => {
+      const qty = calculateCumulQty(a.months)
+      return qty > 0
+    })
+  }, [assets, calculateCumulQty])
+
   const calculateGainLoss = (ticker: string) => {
     const asset = assets.find(a => a.ticker === ticker)
     if (!asset) return { value: '0.00', isPositive: true }
 
+    // For Soberanos and FCI, always return 0%
+    if (isFixedQuantityCategory(asset.category)) {
+      return { value: '0.00', isPositive: true }
+    }
+
     const cumul = calculateCumulative(asset.months)
     const qty = calculateCumulQty(asset.months)
     const price = getPrice(ticker) || 0
-    const curr = qty * price
-    const gainLoss = cumul > 0 ? ((curr - cumul) / cumul * 100) : 0
+    const curr = qty * price  // Use native JS multiplication
+    // Use native JS arithmetic to avoid currency.js rounding
+    const gainLoss = cumul > 0 ? truncate((curr - cumul) / cumul * 100, 2) : 0
 
     return {
-      value: Math.abs(gainLoss).toFixed(2),
+      value: currency(Math.abs(gainLoss), { precision: 2, symbol: '' }).format(),
       isPositive: gainLoss >= 0
     }
   }
 
   const totalInvested = useMemo(() => {
-    return assetsWithQuantity.reduce((sum, a) => sum + calculateCumulative(a.months), 0)
-  }, [assetsWithQuantity])
+    return assetsWithQuantity.reduce((sum, a) => currency(sum).add(calculateCumulative(a.months)).value, 0)
+  }, [assetsWithQuantity, calculateCumulative])
 
   const totalCurrentValue = useMemo(() => {
     return assetsWithQuantity.reduce((sum, a) => {
       const qty = calculateCumulQty(a.months)
       const price = prices[a.ticker.toUpperCase()] ?? null
-      return sum + (qty * (price || 0))
+      return sum + (qty * (price || 0))  // Use native JS arithmetic
     }, 0)
-  }, [assetsWithQuantity, prices])
+  }, [assetsWithQuantity, prices, calculateCumulQty])
 
-  const totalGainLoss = totalInvested > 0 ? ((totalCurrentValue - totalInvested) / totalInvested * 100) : 0
+  const totalGainLoss = totalInvested > 0 ? truncate((totalCurrentValue - totalInvested) / totalInvested * 100, 2) : 0
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
@@ -191,7 +263,7 @@ export default function InvestmentTracker() {
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">${totalInvested.toFixed(2)}</div>
+              <div className="text-2xl font-bold">{currency(totalInvested).format()}</div>
               <p className="text-xs text-muted-foreground">Capital acumulado</p>
             </CardContent>
           </Card>
@@ -202,7 +274,7 @@ export default function InvestmentTracker() {
               <PieChart className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">${totalCurrentValue.toFixed(2)}</div>
+              <div className="text-2xl font-bold">{currency(totalCurrentValue).format()}</div>
               <p className="text-xs text-muted-foreground">Valorización total</p>
             </CardContent>
           </Card>
@@ -218,7 +290,7 @@ export default function InvestmentTracker() {
             </CardHeader>
             <CardContent>
               <div className={`text-2xl font-bold ${totalGainLoss >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                {totalGainLoss >= 0 ? '+' : ''}{totalGainLoss.toFixed(2)}%
+                {totalGainLoss >= 0 ? '+' : ''}{currency(totalGainLoss, { precision: 2, symbol: '' }).format()}%
               </div>
               <p className="text-xs text-muted-foreground">Rendimiento total</p>
             </CardContent>
@@ -239,10 +311,10 @@ export default function InvestmentTracker() {
               <div>
                 <label className="text-sm font-medium mb-2 block">Ticker</label>
                 <Select value={selectedAssetId.toString()} onValueChange={(v) => setSelectedAssetId(parseInt(v, 10))}>
-                  <SelectTrigger>
-                    <SelectValue />
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Seleccionar ticker..." />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-h-[300px]">
                     {assets.map(a => (
                       <SelectItem key={a.id} value={a.id.toString()}>
                         {a.ticker} - {a.category}
@@ -266,19 +338,28 @@ export default function InvestmentTracker() {
                   type="number"
                   placeholder="0.00"
                   step="0.01"
+                  min="0"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                 />
               </div>
 
               <div>
-                <label className="text-sm font-medium mb-2 block">Cantidad</label>
+                <label className="text-sm font-medium mb-2 block">
+                  Cantidad
+                  {isFixedQuantityCategory(assets.find(a => a.id === selectedAssetId)?.category || '') && (
+                    <span className="text-xs text-muted-foreground ml-2">(fijo en 1)</span>
+                  )}
+                </label>
                 <Input
                   type="number"
                   placeholder="0"
                   step="0.01"
-                  value={qty}
+                  min="0"
+                  value={isFixedQuantityCategory(assets.find(a => a.id === selectedAssetId)?.category || '') ? '1' : qty}
                   onChange={(e) => setQty(e.target.value)}
+                  disabled={isFixedQuantityCategory(assets.find(a => a.id === selectedAssetId)?.category || '')}
+                  className={isFixedQuantityCategory(assets.find(a => a.id === selectedAssetId)?.category || '') ? 'bg-muted cursor-not-allowed' : ''}
                 />
               </div>
             </div>
@@ -305,7 +386,7 @@ export default function InvestmentTracker() {
                 disabled={loading}
               >
                 <RefreshCw className="h-4 w-4" />
-                Actualizar todos los precios
+                Actualizar precios
               </Button>
             </div>
           </CardHeader>
@@ -339,6 +420,7 @@ export default function InvestmentTracker() {
                       const isLoading = isLoadingTicker(asset.ticker)
                       const price = getPrice(asset.ticker)
                       const qty = calculateCumulQty(asset.months)
+                      const avgPrice = calculateAvgPrice(asset.months)
 
                       return (
                         <TableRow key={asset.id}>
@@ -351,13 +433,13 @@ export default function InvestmentTracker() {
                             {asset.ticker}
                           </TableCell>
                           <TableCell className="text-right">{dynPercent}%</TableCell>
-                          <TableCell className="text-right font-medium">${cumul.toFixed(2)}</TableCell>
-                          <TableCell className="text-right">{qty.toFixed(2)}</TableCell>
-                          <TableCell className="text-right">${calculateAvgPrice(asset.months).toFixed(2)}</TableCell>
+                          <TableCell className="text-right font-medium">{currency(cumul).format()}</TableCell>
+                          <TableCell className="text-right">{currency(qty, { precision: 2, symbol: '' }).format()}</TableCell>
+                          <TableCell className="text-right">{currency(avgPrice, { precision: 3 }).format()}</TableCell>
                           <TableCell className="text-right font-medium">
                             {price !== null && price > 0 ? (
                               <span className={isLoading ? 'text-muted-foreground' : ''}>
-                                ${price.toFixed(2)}
+                                {currency(price, { precision: 3 }).format()}
                               </span>
                             ) : (
                               <span className="text-muted-foreground">-</span>
@@ -374,7 +456,7 @@ export default function InvestmentTracker() {
                   )}
                   <TableRow className="bg-muted/50 font-bold">
                     <TableCell colSpan={3}>Total</TableCell>
-                    <TableCell className="text-right">${totalInvested.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">{currency(totalInvested).format()}</TableCell>
                     <TableCell colSpan={4}></TableCell>
                   </TableRow>
                 </TableBody>
@@ -398,12 +480,13 @@ export default function InvestmentTracker() {
                     <TableHead>Ticker</TableHead>
                     <TableHead className="text-right">Monto</TableHead>
                     <TableHead className="text-right">Cantidad</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {operations.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                         No hay operaciones registradas aún
                       </TableCell>
                     </TableRow>
@@ -412,8 +495,18 @@ export default function InvestmentTracker() {
                       <TableRow key={idx}>
                         <TableCell>{op.date}</TableCell>
                         <TableCell className="font-mono font-semibold">{op.ticker}</TableCell>
-                        <TableCell className="text-right">${op.amount.toFixed(2)}</TableCell>
-                        <TableCell className="text-right">{op.qty.toFixed(2)}</TableCell>
+                        <TableCell className="text-right">{currency(op.amount).format()}</TableCell>
+                        <TableCell className="text-right">{currency(op.qty, { precision: 2, symbol: '' }).format()}</TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => deleteOperation(idx)}
+                            className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))
                   )}
