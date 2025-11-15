@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -59,18 +59,6 @@ export default function InvestmentTracker() {
   const [date, setDate] = useState<Date | undefined>(new Date())
   const [amount, setAmount] = useState('')
   const [qty, setQty] = useState('')
-
-  // Get all tickers from assets
-  const tickers = assets.map(a => a.ticker)
-
-  // Market prices hook with SWR
-  const {
-    prices,
-    loading,
-    refreshPrices,
-    getPrice,
-    isLoadingTicker,
-  } = useMarketPrices(tickers)
 
   const addMonthlyData = () => {
     const asset = assets.find(a => a.id === selectedAssetId)
@@ -134,6 +122,28 @@ export default function InvestmentTracker() {
   const calculateDynamicPercent = (cumul: number, total: number) =>
     total > 0 ? (cumul / total * 100).toFixed(2) : '0.00'
 
+  // Filter assets that have quantity > 0
+  const assetsWithQuantity = useMemo(() => {
+    return assets.filter(a => {
+      const qty = calculateCumulQty(a.months)
+      return qty > 0
+    })
+  }, [assets])
+
+  // Get tickers only from assets with quantity
+  const tickers = useMemo(() => {
+    return assetsWithQuantity.map(a => a.ticker)
+  }, [assetsWithQuantity])
+
+  // Market prices hook with SWR
+  const {
+    prices,
+    loading,
+    refreshPrices,
+    getPrice,
+    isLoadingTicker,
+  } = useMarketPrices(tickers)
+
   const calculateGainLoss = (ticker: string) => {
     const asset = assets.find(a => a.ticker === ticker)
     if (!asset) return { value: '0.00', isPositive: true }
@@ -150,12 +160,18 @@ export default function InvestmentTracker() {
     }
   }
 
-  const totalInvested = assets.reduce((sum, a) => sum + calculateCumulative(a.months), 0)
-  const totalCurrentValue = assets.reduce((sum, a) => {
-    const qty = calculateCumulQty(a.months)
-    const price = getPrice(a.ticker) || 0
-    return sum + (qty * price)
-  }, 0)
+  const totalInvested = useMemo(() => {
+    return assetsWithQuantity.reduce((sum, a) => sum + calculateCumulative(a.months), 0)
+  }, [assetsWithQuantity])
+
+  const totalCurrentValue = useMemo(() => {
+    return assetsWithQuantity.reduce((sum, a) => {
+      const qty = calculateCumulQty(a.months)
+      const price = prices[a.ticker.toUpperCase()] ?? null
+      return sum + (qty * (price || 0))
+    }, 0)
+  }, [assetsWithQuantity, prices])
+
   const totalGainLoss = totalInvested > 0 ? ((totalCurrentValue - totalInvested) / totalInvested * 100) : 0
 
   return (
@@ -309,45 +325,53 @@ export default function InvestmentTracker() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {assets.map(asset => {
-                    const cumul = calculateCumulative(asset.months)
-                    const dynPercent = calculateDynamicPercent(cumul, totalInvested)
-                    const gainLoss = calculateGainLoss(asset.ticker)
-                    const isLoading = isLoadingTicker(asset.ticker)
-                    const price = getPrice(asset.ticker)
-                    const qty = calculateCumulQty(asset.months)
+                  {assetsWithQuantity.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                        No hay instrumentos con cantidad registrada. Agrega una operación para comenzar.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    assetsWithQuantity.map(asset => {
+                      const cumul = calculateCumulative(asset.months)
+                      const dynPercent = calculateDynamicPercent(cumul, totalInvested)
+                      const gainLoss = calculateGainLoss(asset.ticker)
+                      const isLoading = isLoadingTicker(asset.ticker)
+                      const price = getPrice(asset.ticker)
+                      const qty = calculateCumulQty(asset.months)
 
-                    return (
-                      <TableRow key={asset.id}>
-                        <TableCell className="font-medium text-sm">
-                          <Badge variant="outline" className="text-xs">
-                            {asset.category.split(' ')[0]}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="font-mono font-semibold">
-                          {asset.ticker}
-                        </TableCell>
-                        <TableCell className="text-right">{dynPercent}%</TableCell>
-                        <TableCell className="text-right font-medium">${cumul.toFixed(2)}</TableCell>
-                        <TableCell className="text-right">{qty.toFixed(2)}</TableCell>
-                        <TableCell className="text-right">${calculateAvgPrice(asset.months).toFixed(2)}</TableCell>
-                        <TableCell className="text-right font-medium">
-                          {price !== null && price > 0 ? (
-                            <span className={isLoading ? 'text-muted-foreground' : ''}>
-                              ${price.toFixed(2)}
+                      return (
+                        <TableRow key={asset.id}>
+                          <TableCell className="font-medium text-sm">
+                            <Badge variant="outline" className="text-xs">
+                              {asset.category.split(' ')[0]}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="font-mono font-semibold">
+                            {asset.ticker}
+                          </TableCell>
+                          <TableCell className="text-right">{dynPercent}%</TableCell>
+                          <TableCell className="text-right font-medium">${cumul.toFixed(2)}</TableCell>
+                          <TableCell className="text-right">{qty.toFixed(2)}</TableCell>
+                          <TableCell className="text-right">${calculateAvgPrice(asset.months).toFixed(2)}</TableCell>
+                          <TableCell className="text-right font-medium">
+                            {price !== null && price > 0 ? (
+                              <span className={isLoading ? 'text-muted-foreground' : ''}>
+                                ${price.toFixed(2)}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <span className={gainLoss.isPositive ? 'text-emerald-500' : 'text-rose-500'}>
+                              {gainLoss.isPositive ? '+' : '-'}{gainLoss.value}%
                             </span>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <span className={gainLoss.isPositive ? 'text-emerald-500' : 'text-rose-500'}>
-                            {gainLoss.isPositive ? '+' : '-'}{gainLoss.value}%
-                          </span>
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })
+                  )}
                   <TableRow className="bg-muted/50 font-bold">
                     <TableCell colSpan={3}>Total</TableCell>
                     <TableCell className="text-right">${totalInvested.toFixed(2)}</TableCell>
