@@ -1,17 +1,44 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { zodResolver } from '@hookform/resolvers/zod'
 import currency from 'currency.js'
-import { DollarSign, PieChart, PlusCircle, RefreshCw, Trash2, TrendingDown, TrendingUp } from 'lucide-react'
+import {
+  DollarSign,
+  PieChart,
+  PlusCircle,
+  RefreshCw,
+  Trash2,
+  TrendingDown,
+  TrendingUp,
+} from 'lucide-react'
+import { useCallback, useMemo, useState } from 'react'
+import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
-import { Badge } from '@/components/ui/badge'
+import { PortfolioChart } from '@/components/PortfolioChart'
+import { PortfolioRow } from '@/components/PortfolioRow'
+import { PortfolioSummary } from '@/components/PortfolioSummary'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { DateInput } from '@/components/ui/date-input'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { useMarketPrices } from '@/lib/hooks/useMarketPrices'
+import { generateMonthlyChartData } from '@/lib/portfolio-utils'
+import { type OperationFormData, operationSchema } from '@/lib/schemas/operation'
 import { formatDate } from '@/lib/utils'
 
 type Asset = {
@@ -32,20 +59,68 @@ type Operation = {
 const initialAssets: Asset[] = [
   { id: 1, category: 'Equities Growth (CEDEARs)', ticker: 'AMZND', percent: 13.29, months: {} },
   { id: 2, category: 'Equities Growth (CEDEARs)', ticker: 'MSFTD', percent: 12.98, months: {} },
-  { id: 3, category: 'Equities Growth (CEDEARs)', ticker: 'JPMD', percent: 8.40, months: {} },
+  { id: 3, category: 'Equities Growth (CEDEARs)', ticker: 'JPMD', percent: 8.4, months: {} },
   { id: 4, category: 'Equities Growth (CEDEARs)', ticker: 'XLFD', percent: 8.22, months: {} },
   { id: 5, category: 'Equities Growth (CEDEARs)', ticker: 'GSD', percent: 0, months: {} },
-  { id: 6, category: 'Equities Value/Defensivos (CEDEARs)', ticker: 'UNHD', percent: 8.58, months: {} },
-  { id: 7, category: 'Equities Value/Defensivos (CEDEARs)', ticker: 'XLVD', percent: 8.64, months: {} },
-  { id: 8, category: 'Equities Value/Defensivos (CEDEARs)', ticker: 'CATD', percent: 0, months: {} },
-  { id: 9, category: 'Equities Value/Defensivos (CEDEARs)', ticker: 'PFED', percent: 0, months: {} },
-  { id: 10, category: 'Equities Value/Defensivos (CEDEARs)', ticker: 'BIIBD', percent: 0, months: {} },
-  { id: 11, category: 'Equities Value/Defensivos (CEDEARs)', ticker: 'MMMD', percent: 0, months: {} },
-  { id: 12, category: 'Equities Value/Defensivos (CEDEARs)', ticker: 'DIAD', percent: 0, months: {} },
-  { id: 13, category: 'Equities Value/Defensivos (CEDEARs)', ticker: 'JNJD', percent: 6.73, months: {} },
+  {
+    id: 6,
+    category: 'Equities Value/Defensivos (CEDEARs)',
+    ticker: 'UNHD',
+    percent: 8.58,
+    months: {},
+  },
+  {
+    id: 7,
+    category: 'Equities Value/Defensivos (CEDEARs)',
+    ticker: 'XLVD',
+    percent: 8.64,
+    months: {},
+  },
+  {
+    id: 8,
+    category: 'Equities Value/Defensivos (CEDEARs)',
+    ticker: 'CATD',
+    percent: 0,
+    months: {},
+  },
+  {
+    id: 9,
+    category: 'Equities Value/Defensivos (CEDEARs)',
+    ticker: 'PFED',
+    percent: 0,
+    months: {},
+  },
+  {
+    id: 10,
+    category: 'Equities Value/Defensivos (CEDEARs)',
+    ticker: 'BIIBD',
+    percent: 0,
+    months: {},
+  },
+  {
+    id: 11,
+    category: 'Equities Value/Defensivos (CEDEARs)',
+    ticker: 'MMMD',
+    percent: 0,
+    months: {},
+  },
+  {
+    id: 12,
+    category: 'Equities Value/Defensivos (CEDEARs)',
+    ticker: 'DIAD',
+    percent: 0,
+    months: {},
+  },
+  {
+    id: 13,
+    category: 'Equities Value/Defensivos (CEDEARs)',
+    ticker: 'JNJD',
+    percent: 6.73,
+    months: {},
+  },
   { id: 14, category: 'FCI Líquido', ticker: 'Ciclo Nova II Clase A', percent: 6.28, months: {} },
   { id: 15, category: 'Fixed Income Acciones', ticker: 'YPFDD', percent: 12.17, months: {} },
-  { id: 16, category: 'Fixed Income Acciones', ticker: 'PAMPD', percent: 9.10, months: {} },
+  { id: 16, category: 'Fixed Income Acciones', ticker: 'PAMPD', percent: 9.1, months: {} },
   { id: 17, category: 'Fixed Income Acciones', ticker: 'TXARD', percent: 0, months: {} },
   { id: 18, category: 'Fixed Income Corporativo (ONs)', ticker: 'YM39D', percent: 0, months: {} },
   { id: 19, category: 'Fixed Income Corporativo (ONs)', ticker: 'YMCID', percent: 0, months: {} },
@@ -54,99 +129,90 @@ const initialAssets: Asset[] = [
 ]
 
 export default function InvestmentTracker() {
-  const [assets, setAssets] = useState<Asset[]>(initialAssets)
+  // Single source of truth: operations
   const [operations, setOperations] = useState<Operation[]>([])
-  const [selectedAssetId, setSelectedAssetId] = useState<number>(1)
-  const [date, setDate] = useState<Date | undefined>(new Date())
-  const [amount, setAmount] = useState('')
-  const [qty, setQty] = useState('')
+
+  // React Hook Form with Zod validation
+  const form = useForm<OperationFormData>({
+    resolver: zodResolver(operationSchema),
+    defaultValues: {
+      assetId: 1,
+      date: new Date(),
+      amount: 0,
+      qty: undefined,
+    },
+  })
+
+  const selectedAssetId = form.watch('assetId')
 
   // Helper to check if asset category requires fixed quantity = 1
-  const isFixedQuantityCategory = (category: string) => {
+  const isFixedQuantityCategory = useCallback((category: string) => {
     return category === 'Soberanos' || category === 'FCI Líquido'
-  }
+  }, [])
 
-  const addMonthlyData = () => {
-    const asset = assets.find(a => a.id === selectedAssetId)
-    if (!asset || (!amount && !qty) || !date) return
+  // Get selected asset
+  const selectedAsset = useMemo(
+    () => initialAssets.find(a => a.id === selectedAssetId),
+    [selectedAssetId]
+  )
 
-    const dateStr = formatDate(date)
-    const parsedAmount = parseFloat(amount) || 0
+  // Derive assets from operations (single source of truth)
+  // This prevents state synchronization bugs
+  const assets = useMemo(() => {
+    return initialAssets.map(asset => {
+      // Get all operations for this asset
+      const assetOps = operations.filter(op => op.ticker === asset.ticker)
+
+      // Group operations by date into months
+      const months = assetOps.reduce(
+        (acc, op) => {
+          const key = op.date.replace(/\//g, '-')
+          if (!acc[key]) {
+            acc[key] = { amount: 0, qty: 0 }
+          }
+          acc[key].amount += op.amount
+          acc[key].qty += op.qty
+          return acc
+        },
+        {} as Record<string, { amount: number; qty: number }>
+      )
+
+      return { ...asset, months }
+    })
+  }, [operations])
+
+  const onSubmit = (data: OperationFormData) => {
+    const asset = initialAssets.find(a => a.id === data.assetId)
+    if (!asset) return
+
+    const dateStr = formatDate(data.date)
     // For Soberanos and FCI, quantity is always 1
-    const parsedQty = isFixedQuantityCategory(asset.category) ? 1 : (parseFloat(qty) || 0)
+    const qty = isFixedQuantityCategory(asset.category) ? 1 : data.qty || 0
 
     const newOp: Operation = {
       date: dateStr,
       ticker: asset.ticker,
-      amount: parsedAmount,
-      qty: parsedQty
+      amount: data.amount,
+      qty,
     }
 
+    // Simply add to operations - assets will be derived automatically
     setOperations(prev => [...prev, newOp])
 
-    const key = dateStr.replace(/\//g, '-')
-    setAssets(assets.map(a =>
-      a.id === selectedAssetId
-        ? {
-            ...a,
-            months: {
-              ...a.months,
-              [key]: {
-                amount: (a.months[key]?.amount || 0) + parsedAmount,
-                qty: (a.months[key]?.qty || 0) + parsedQty
-              }
-            }
-          }
-        : a
-    ))
+    // Reset form
+    form.reset({
+      assetId: data.assetId,
+      date: new Date(),
+      amount: 0,
+      qty: undefined,
+    })
 
-    setAmount('')
-    setQty('')
+    toast.success('Operación agregada')
   }
 
   const deleteOperation = (index: number) => {
-    const operation = operations[index]
-    if (!operation) return
-
-    // Find the asset for this operation
-    const asset = assets.find(a => a.ticker === operation.ticker)
-    if (!asset) return
-
-    // Remove from operations
+    // Simply remove from operations - assets will be re-derived automatically
     setOperations(prev => prev.filter((_, i) => i !== index))
-
-    // Update asset months by subtracting the operation
-    const key = operation.date.replace(/\//g, '-')
-    setAssets(prevAssets =>
-      prevAssets.map(a => {
-        if (a.ticker !== operation.ticker) return a
-
-        const currentMonth = a.months[key]
-        if (!currentMonth) return a
-
-        const newAmount = currentMonth.amount - operation.amount
-        const newQty = currentMonth.qty - operation.qty
-
-        // If both are 0 or less, remove the month entry
-        if (newAmount <= 0 && newQty <= 0) {
-          const { [key]: _, ...remainingMonths } = a.months
-          return { ...a, months: remainingMonths }
-        }
-
-        // Otherwise update the month
-        return {
-          ...a,
-          months: {
-            ...a.months,
-            [key]: {
-              amount: Math.max(0, newAmount),
-              qty: Math.max(0, newQty)
-            }
-          }
-        }
-      })
-    )
-
     toast.success('Operación eliminada')
   }
 
@@ -169,11 +235,17 @@ export default function InvestmentTracker() {
     return Math.floor(value * multiplier) / multiplier
   }
 
-  const calculateCumulative = useCallback((months: Record<string, { amount: number; qty: number }>) =>
-    Object.values(months).reduce((sum, m) => currency(sum).add(m.amount || 0).value, 0), [])
+  const calculateCumulative = useCallback(
+    (months: Record<string, { amount: number; qty: number }>) =>
+      Object.values(months).reduce((sum, m) => currency(sum).add(m.amount || 0).value, 0),
+    []
+  )
 
-  const calculateCumulQty = useCallback((months: Record<string, { amount: number; qty: number }>) =>
-    Object.values(months).reduce((sum, m) => currency(sum).add(m.qty || 0).value, 0), [])
+  const calculateCumulQty = useCallback(
+    (months: Record<string, { amount: number; qty: number }>) =>
+      Object.values(months).reduce((sum, m) => currency(sum).add(m.qty || 0).value, 0),
+    []
+  )
 
   const calculateAvgPrice = (months: Record<string, { amount: number; qty: number }>) => {
     const totalAmt = calculateCumulative(months)
@@ -185,7 +257,9 @@ export default function InvestmentTracker() {
   }
 
   const calculateDynamicPercent = (cumul: number, total: number) =>
-    total > 0 ? currency(truncate((cumul / total) * 100, 2), { precision: 2, symbol: '' }).format() : '0.00'
+    total > 0
+      ? currency(truncate((cumul / total) * 100, 2), { precision: 2, symbol: '' }).format()
+      : '0.00'
 
   // Get ALL tickers for price fetching (not filtered by quantity)
   // This ensures we fetch all prices once on mount, not on every operation add
@@ -194,13 +268,7 @@ export default function InvestmentTracker() {
   }, []) // Empty deps - only compute once
 
   // Market prices hook - will fetch once on mount
-  const {
-    prices,
-    loading,
-    refreshPrices,
-    getPrice,
-    isLoadingTicker,
-  } = useMarketPrices(tickers)
+  const { prices, loading, refreshPrices, getPrice, isLoadingTicker } = useMarketPrices(tickers)
 
   // Filter assets that have quantity > 0 (for display only, not for fetching)
   const assetsWithQuantity = useMemo(() => {
@@ -222,29 +290,41 @@ export default function InvestmentTracker() {
     const cumul = calculateCumulative(asset.months)
     const qty = calculateCumulQty(asset.months)
     const price = getPrice(ticker) || 0
-    const curr = qty * price  // Use native JS multiplication
+    const curr = qty * price // Use native JS multiplication
     // Use native JS arithmetic to avoid currency.js rounding
-    const gainLoss = cumul > 0 ? truncate((curr - cumul) / cumul * 100, 2) : 0
+    const gainLoss = cumul > 0 ? truncate(((curr - cumul) / cumul) * 100, 2) : 0
 
     return {
       value: currency(Math.abs(gainLoss), { precision: 2, symbol: '' }).format(),
-      isPositive: gainLoss >= 0
+      isPositive: gainLoss >= 0,
     }
   }
 
   const totalInvested = useMemo(() => {
-    return assetsWithQuantity.reduce((sum, a) => currency(sum).add(calculateCumulative(a.months)).value, 0)
+    return assetsWithQuantity.reduce(
+      (sum, a) => currency(sum).add(calculateCumulative(a.months)).value,
+      0
+    )
   }, [assetsWithQuantity, calculateCumulative])
 
   const totalCurrentValue = useMemo(() => {
     return assetsWithQuantity.reduce((sum, a) => {
       const qty = calculateCumulQty(a.months)
       const price = prices[a.ticker.toUpperCase()] ?? null
-      return sum + (qty * (price || 0))  // Use native JS arithmetic
+      return sum + qty * (price || 0) // Use native JS arithmetic
     }, 0)
   }, [assetsWithQuantity, prices, calculateCumulQty])
 
-  const totalGainLoss = totalInvested > 0 ? truncate((totalCurrentValue - totalInvested) / totalInvested * 100, 2) : 0
+  const totalGainLoss =
+    totalInvested > 0 ? truncate(((totalCurrentValue - totalInvested) / totalInvested) * 100, 2) : 0
+
+  const absoluteGainLoss = useMemo(() => {
+    return totalCurrentValue - totalInvested
+  }, [totalCurrentValue, totalInvested])
+
+  const monthlyChartData = useMemo(() => {
+    return generateMonthlyChartData(assetsWithQuantity, prices)
+  }, [assetsWithQuantity, prices])
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
@@ -252,7 +332,9 @@ export default function InvestmentTracker() {
         {/* Header */}
         <div className="space-y-2">
           <h1 className="text-3xl font-bold tracking-tight md:text-4xl">IEB+ Investment Tracker</h1>
-          <p className="text-muted-foreground">Seguimiento completo de tu portafolio de inversiones</p>
+          <p className="text-muted-foreground">
+            Seguimiento completo de tu portafolio de inversiones
+          </p>
         </div>
 
         {/* Summary Cards */}
@@ -289,13 +371,27 @@ export default function InvestmentTracker() {
               )}
             </CardHeader>
             <CardContent>
-              <div className={`text-2xl font-bold ${totalGainLoss >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                {totalGainLoss >= 0 ? '+' : ''}{currency(totalGainLoss, { precision: 2, symbol: '' }).format()}%
+              <div
+                className={`text-2xl font-bold ${totalGainLoss >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}
+              >
+                {totalGainLoss >= 0 ? '+' : ''}
+                {currency(totalGainLoss, { precision: 2, symbol: '' }).format()}%
               </div>
               <p className="text-xs text-muted-foreground">Rendimiento total</p>
             </CardContent>
           </Card>
         </div>
+
+        {/* Portfolio Summary */}
+        <PortfolioSummary
+          totalInvested={totalInvested}
+          currentValue={totalCurrentValue}
+          gainLoss={absoluteGainLoss}
+          gainLossPercent={totalGainLoss}
+        />
+
+        {/* Portfolio Chart */}
+        <PortfolioChart data={monthlyChartData} />
 
         {/* Add Operation Form */}
         <Card>
@@ -307,67 +403,94 @@ export default function InvestmentTracker() {
             <CardDescription>Registra nuevas compras o aportes a tus activos</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 md:grid-cols-4">
-              <div>
-                <label className="text-sm font-medium mb-2 block">Ticker</label>
-                <Select value={selectedAssetId.toString()} onValueChange={(v) => setSelectedAssetId(parseInt(v, 10))}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Seleccionar ticker..." />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-[300px]">
-                    {assets.map(a => (
-                      <SelectItem key={a.id} value={a.id.toString()}>
-                        {a.ticker} - {a.category}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <form onSubmit={form.handleSubmit(onSubmit)}>
+              <div className="grid gap-4 md:grid-cols-4">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Ticker</label>
+                  <Select
+                    value={form.watch('assetId').toString()}
+                    onValueChange={v => form.setValue('assetId', parseInt(v, 10))}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Seleccionar ticker..." />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      {initialAssets.map(a => (
+                        <SelectItem key={a.id} value={a.id.toString()}>
+                          {a.ticker} - {a.category}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <div>
-                <label className="text-sm font-medium mb-2 block">Fecha</label>
-                <DateInput
-                  selected={date}
-                  onSelect={setDate}
-                />
-              </div>
-
-              <div>
-                <label className="text-sm font-medium mb-2 block">Monto ($)</label>
-                <Input
-                  type="number"
-                  placeholder="0.00"
-                  step="0.01"
-                  min="0"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label className="text-sm font-medium mb-2 block">
-                  Cantidad
-                  {isFixedQuantityCategory(assets.find(a => a.id === selectedAssetId)?.category || '') && (
-                    <span className="text-xs text-muted-foreground ml-2">(fijo en 1)</span>
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Fecha</label>
+                  <DateInput
+                    selected={form.watch('date')}
+                    onSelect={date => form.setValue('date', date || new Date())}
+                  />
+                  {form.formState.errors.date && (
+                    <p className="text-sm text-destructive mt-1">
+                      {form.formState.errors.date.message}
+                    </p>
                   )}
-                </label>
-                <Input
-                  type="number"
-                  placeholder="0"
-                  step="0.01"
-                  min="0"
-                  value={isFixedQuantityCategory(assets.find(a => a.id === selectedAssetId)?.category || '') ? '1' : qty}
-                  onChange={(e) => setQty(e.target.value)}
-                  disabled={isFixedQuantityCategory(assets.find(a => a.id === selectedAssetId)?.category || '')}
-                  className={isFixedQuantityCategory(assets.find(a => a.id === selectedAssetId)?.category || '') ? 'bg-muted cursor-not-allowed' : ''}
-                />
-              </div>
-            </div>
+                </div>
 
-            <Button onClick={addMonthlyData} className="w-full mt-4">
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Agregar Operación
-            </Button>
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Monto ($)</label>
+                  <Input
+                    type="number"
+                    placeholder="0.00"
+                    step="0.01"
+                    min="0"
+                    {...form.register('amount', { valueAsNumber: true })}
+                  />
+                  {form.formState.errors.amount && (
+                    <p className="text-sm text-destructive mt-1">
+                      {form.formState.errors.amount.message}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium mb-2 block">
+                    Cantidad
+                    {selectedAsset && isFixedQuantityCategory(selectedAsset.category) && (
+                      <span className="text-xs text-muted-foreground ml-2">(fijo en 1)</span>
+                    )}
+                  </label>
+                  <Input
+                    type="number"
+                    placeholder="0"
+                    step="0.01"
+                    min="0"
+                    value={
+                      selectedAsset && isFixedQuantityCategory(selectedAsset.category)
+                        ? '1'
+                        : form.watch('qty') || ''
+                    }
+                    {...form.register('qty', { valueAsNumber: true })}
+                    disabled={selectedAsset && isFixedQuantityCategory(selectedAsset.category)}
+                    className={
+                      selectedAsset && isFixedQuantityCategory(selectedAsset.category)
+                        ? 'bg-muted cursor-not-allowed'
+                        : ''
+                    }
+                  />
+                  {form.formState.errors.qty && (
+                    <p className="text-sm text-destructive mt-1">
+                      {form.formState.errors.qty.message}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <Button type="submit" className="w-full mt-4">
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Agregar Operación
+              </Button>
+            </form>
           </CardContent>
         </Card>
 
@@ -409,48 +532,32 @@ export default function InvestmentTracker() {
                   {assetsWithQuantity.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
-                        No hay instrumentos con cantidad registrada. Agrega una operación para comenzar.
+                        No hay instrumentos con cantidad registrada. Agrega una operación para
+                        comenzar.
                       </TableCell>
                     </TableRow>
                   ) : (
                     assetsWithQuantity.map(asset => {
                       const cumul = calculateCumulative(asset.months)
+                      const qty = calculateCumulQty(asset.months)
+                      const avgPrice = calculateAvgPrice(asset.months)
                       const dynPercent = calculateDynamicPercent(cumul, totalInvested)
                       const gainLoss = calculateGainLoss(asset.ticker)
                       const isLoading = isLoadingTicker(asset.ticker)
                       const price = getPrice(asset.ticker)
-                      const qty = calculateCumulQty(asset.months)
-                      const avgPrice = calculateAvgPrice(asset.months)
 
                       return (
-                        <TableRow key={asset.id}>
-                          <TableCell className="font-medium text-sm">
-                            <Badge variant="outline" className="text-xs">
-                              {asset.category.split(' ')[0]}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="font-mono font-semibold">
-                            {asset.ticker}
-                          </TableCell>
-                          <TableCell className="text-right">{dynPercent}%</TableCell>
-                          <TableCell className="text-right font-medium">{currency(cumul).format()}</TableCell>
-                          <TableCell className="text-right">{currency(qty, { precision: 2, symbol: '' }).format()}</TableCell>
-                          <TableCell className="text-right">{currency(avgPrice, { precision: 3 }).format()}</TableCell>
-                          <TableCell className="text-right font-medium">
-                            {price !== null && price > 0 ? (
-                              <span className={isLoading ? 'text-muted-foreground' : ''}>
-                                {currency(price, { precision: 3 }).format()}
-                              </span>
-                            ) : (
-                              <span className="text-muted-foreground">-</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <span className={gainLoss.isPositive ? 'text-emerald-500' : 'text-rose-500'}>
-                              {gainLoss.isPositive ? '+' : '-'}{gainLoss.value}%
-                            </span>
-                          </TableCell>
-                        </TableRow>
+                        <PortfolioRow
+                          key={asset.id}
+                          asset={asset}
+                          cumul={cumul}
+                          qty={qty}
+                          avgPrice={avgPrice}
+                          dynPercent={dynPercent}
+                          price={price}
+                          gainLoss={gainLoss}
+                          isLoading={isLoading}
+                        />
                       )
                     })
                   )}
@@ -496,7 +603,9 @@ export default function InvestmentTracker() {
                         <TableCell>{op.date}</TableCell>
                         <TableCell className="font-mono font-semibold">{op.ticker}</TableCell>
                         <TableCell className="text-right">{currency(op.amount).format()}</TableCell>
-                        <TableCell className="text-right">{currency(op.qty, { precision: 2, symbol: '' }).format()}</TableCell>
+                        <TableCell className="text-right">
+                          {currency(op.qty, { precision: 2, symbol: '' }).format()}
+                        </TableCell>
                         <TableCell className="text-right">
                           <Button
                             variant="ghost"

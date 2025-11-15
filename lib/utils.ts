@@ -1,6 +1,6 @@
-import { clsx, type ClassValue } from 'clsx'
+import { type ClassValue, clsx } from 'clsx'
+import { format, isValid, parse } from 'date-fns'
 import { twMerge } from 'tailwind-merge'
-import { format, parse, isValid } from 'date-fns'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -28,4 +28,23 @@ export function formatDate(date: Date | undefined): string {
   } catch {
     return ''
   }
+}
+
+/**
+ * Format number as USD currency
+ */
+export function formatCurrency(amount: number, locale = 'es-AR'): string {
+  return new Intl.NumberFormat(locale, {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount)
+}
+
+/**
+ * Format number as percentage
+ */
+export function formatPercent(value: number, decimals = 2): string {
+  return `${value >= 0 ? '+' : ''}${value.toFixed(decimals)}%`
 }

@@ -58,18 +58,14 @@ export function useMarketPrices(tickers: string[]) {
   // Create a stable key for SWR
   const key = tickers.length > 0 ? ['market-prices', ...tickers.sort()] : null
 
-  const { data, error, isLoading, mutate } = useSWR<Record<string, number | null>>(
-    key,
-    fetcher,
-    {
-      // Revalidate every 5 minutes
-      refreshInterval: CACHE_DURATION,
-      // Don't revalidate on focus (to avoid too many requests)
-      revalidateOnFocus: false,
-      // Don't revalidate on reconnect (to avoid too many requests)
-      revalidateOnReconnect: false,
-    }
-  )
+  const { data, error, isLoading, mutate } = useSWR<Record<string, number | null>>(key, fetcher, {
+    // Revalidate every 5 minutes
+    refreshInterval: CACHE_DURATION,
+    // Don't revalidate on focus (to avoid too many requests)
+    revalidateOnFocus: false,
+    // Don't revalidate on reconnect (to avoid too many requests)
+    revalidateOnReconnect: false,
+  })
 
   // Debug: log SWR state
   if (process.env.NODE_ENV === 'development') {
@@ -79,7 +75,7 @@ export function useMarketPrices(tickers: string[]) {
       hasData: !!data,
       dataKeys: data ? Object.keys(data) : [],
       isLoading,
-      error: error?.message
+      error: error?.message,
     })
   }
 
@@ -98,7 +94,10 @@ export function useMarketPrices(tickers: string[]) {
     const price = data[normalizedTicker] ?? null
     // Debug: log price lookup
     if (process.env.NODE_ENV === 'development' && price === null) {
-      console.log(`[useMarketPrices] Price not found for ticker: ${ticker} (normalized: ${normalizedTicker}), available keys:`, Object.keys(data))
+      console.log(
+        `[useMarketPrices] Price not found for ticker: ${ticker} (normalized: ${normalizedTicker}), available keys:`,
+        Object.keys(data)
+      )
     }
     return price
   }

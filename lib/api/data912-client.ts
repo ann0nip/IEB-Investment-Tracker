@@ -53,7 +53,7 @@ async function fetchWithRetry(
     return Array.isArray(data) ? data : []
   } catch (error) {
     if (retries > 0) {
-      await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY))
+      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY))
       return fetchWithRetry(url, retries - 1)
     }
     throw error
@@ -66,13 +66,26 @@ async function fetchWithRetry(
 export async function fetchInstrumentsByCategory(
   category: Exclude<InstrumentCategory, 'fci'>
 ): Promise<Data912Instrument[]> {
-  const endpoint = DATA912_ENDPOINTS[category === 'corp' ? 'corp' : category === 'bond' ? 'bonds' : category === 'stock' ? 'stocks' : category === 'note' ? 'notes' : 'cedears']
+  const endpoint =
+    DATA912_ENDPOINTS[
+      category === 'corp'
+        ? 'corp'
+        : category === 'bond'
+          ? 'bonds'
+          : category === 'stock'
+            ? 'stocks'
+            : category === 'note'
+              ? 'notes'
+              : 'cedears'
+    ]
 
   try {
     return await fetchWithRetry(endpoint)
   } catch (error) {
     console.error(`Error fetching ${category} data from data912:`, error)
-    throw new Error(`Failed to fetch ${category} data: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    throw new Error(
+      `Failed to fetch ${category} data: ${error instanceof Error ? error.message : 'Unknown error'}`
+    )
   }
 }
 
@@ -86,7 +99,7 @@ export async function fetchInstrumentByTicker(
   try {
     const instruments = await fetchInstrumentsByCategory(category)
     const normalizedTicker = normalizeTickerForApi(ticker)
-    const instrument = instruments.find((inst) => inst.symbol === normalizedTicker)
+    const instrument = instruments.find(inst => inst.symbol === normalizedTicker)
     return instrument || null
   } catch (error) {
     console.error(`Error fetching ticker ${ticker}:`, error)
@@ -140,7 +153,7 @@ export async function fetchMultipleTickers(
         )
 
         tickerList.forEach(({ original, normalized }) => {
-          const instrument = instruments.find((inst) => inst.symbol === normalized)
+          const instrument = instruments.find(inst => inst.symbol === normalized)
           results[original] = instrument ? getBestPrice(instrument) : null
         })
       } catch {

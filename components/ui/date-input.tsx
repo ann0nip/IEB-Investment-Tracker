@@ -1,16 +1,12 @@
 'use client'
 
-import * as React from 'react'
 import { format } from 'date-fns'
 import { CalendarIcon } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import * as React from 'react'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { cn } from '@/lib/utils'
 
 interface DateInputProps {
   selected?: Date
@@ -41,7 +37,7 @@ export function DateInput({ selected, onSelect, disabled, className }: DateInput
           mode="single"
           selected={selected}
           onSelect={onSelect}
-          disabled={(date) => date > new Date() || date < new Date('1900-01-01')}
+          disabled={date => date > new Date() || date < new Date('1900-01-01')}
           initialFocus
         />
       </PopoverContent>

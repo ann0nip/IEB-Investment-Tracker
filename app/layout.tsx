@@ -1,11 +1,12 @@
+import { Analytics } from '@vercel/analytics/next'
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
-import { Analytics } from '@vercel/analytics/next'
 import { Toaster } from 'sonner'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import './globals.css'
 
-const _geist = Geist({ subsets: ["latin"] });
-const _geistMono = Geist_Mono({ subsets: ["latin"] });
+const _geist = Geist({ subsets: ['latin'] })
+const _geistMono = Geist_Mono({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: 'IEB+ Investment Tracker',
@@ -38,7 +39,7 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body className={`font-sans antialiased`}>
-        {children}
+        <ErrorBoundary>{children}</ErrorBoundary>
         <Toaster position="top-right" richColors />
         <Analytics />
       </body>
